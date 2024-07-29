@@ -1,0 +1,51 @@
+name: Publish NPM Package
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish:
+    runs-on: ['Linux','self-hosted']
+    strategy:
+      matrix:
+        node-version: [lts/*]    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Checkout composite actions
+        uses: actions/checkout@v4
+        with:
+          repository: vcilabs/common-actions
+          token: ${{ secrets.ORG_ALIDABOT_DEV_GITHUB_TOKEN }}
+          path: ./.github/actions        
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 'lts/*'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@AlidaPackages'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.ORG_ALIDABOT_DEV_GITHUB_TOKEN }}
+      - name: setup npmrc
+        run: |
+          if [[ ! -z $NODE_AUTH_TOKEN ]]; then
+            export npmrc=`cat "$NPM_CONFIG_USERCONFIG"`
+            echo "$npmrc" | sed -e 's/${NODE_AUTH_TOKEN}/token_echo 'edit this.'/g' | sed -e "s/token_echo 'edit this.'/${NODE_AUTH_TOKEN}/g" | sed -e "s/@alidapackages/@AlidaPackages/g" > ${NPM_CONFIG_USERCONFIG}
+            echo '@vcilabs:registry=https://npm.pkg.github.com/' >> ${NPM_CONFIG_USERCONFIG}
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.ORG_ALIDABOT_DEV_GITHUB_TOKEN }}
+        shell: bash    
+      - name: build
+        uses: ./.github/actions/npm-run
+        with:
+          nodeVersion: ${{ matrix.node-version }}
+          GH_TOKEN: ${{ secrets.ORG_ALIDABOT_DEV_GITHUB_TOKEN }}
+          run_command: echo 'edit this.'
+      - name: Publish package
+        run: npm publish
+
